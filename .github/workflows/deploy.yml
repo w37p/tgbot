@@ -3,25 +3,44 @@ name: Deploy Bot to VDS
 on:
   push:
     branches:
-      - main
+      - main  # Триггер на пуш в ветку main
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    runs-on: ubuntu-latest  # Используем последнюю версию Ubuntu
 
-      - name: Deploy to VDS
-        uses: appleboy/ssh-action@v0.1.10
+    steps:
+      # Шаг 1: Checkout репозитория
+      - name: Checkout code
+        uses: actions/checkout@v2  # Клонируем репозиторий на Runner
+
+      # Шаг 2: Настройка SSH-агента
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3  # Устанавливаем SSH-агент
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
+          ssh-private-key: ${{ secrets.SSH_KEY }}  # Приватный ключ для SSH
+
+      # Шаг 3: Деплой на сервер VDS
+      - name: Deploy to VDS
+        uses: appleboy/ssh-action@v0.1.10  # Действие для работы с SSH
+        with:
+          host: ${{ secrets.SSH_HOST }}  # IP-адрес или доменное имя сервера
+          username: ${{ secrets.SSH_USER }}  # Имя пользователя для SSH-подключения
+          key: ${{ secrets.SSH_KEY }}  # Приватный SSH ключ
+          port: 22  # Порт для подключения (обычно 22)
           script: |
+            # Переход в директорию проекта
             cd /root/tgbot || exit 1
+            # Обновление репозитория
             git pull origin main
+            # Компиляция проекта
             go build -o bot main.go
+            # Завершаем старые процессы бота, если они есть
             pkill -f bot || true
-            nohup ./bot > bot.log 2>&1 &
+            # Запуск нового бота в фоновом режиме
+            ./bot &  # Фоновый процесс
+            # Ожидание на 5 секунд, чтобы убедиться, что бот стартует
+            sleep 5
+            # Логируем успешный запуск
+            echo "Bot started successfully" >> bot.log
+          timeout: 30m  # Время ожидания для деплоя
