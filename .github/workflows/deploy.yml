@@ -1,42 +1,31 @@
-name: Build and Deploy Go Project
+name: Deploy and Compile Go Telegram Bot
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]  # Триггер на пуш в main
 
 jobs:
-  build:
+  deploy-and-compile:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '1.18'  # Укажите вашу версию Go
+    - name: Install SSH key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Cache Go modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod tidy
-
-      - name: Build the project
-        run: go build -o bot main.go
-
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}  # Использует ваш приватный ключ из Secrets
-
-      - name: Deploy to server
-        run: |
-          ssh -o StrictHostKeyChecking=no user@your-server-ip "cd /path/to/project && git pull && ./bot"
+    - name: Compile and Restart Bot
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+        # Переходим в директорию с ботом
+        cd /root/tgbot
+        
+        # Компилируем main.go (предполагается, что Go уже установлен на сервере)
+        go build -o tgbot main.go
+        
+        # Если нужно перезапустить сервис (пример для systemd)
+        # sudo systemctl restart tgbot.service
+        EOF
