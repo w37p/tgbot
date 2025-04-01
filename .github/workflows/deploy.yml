@@ -1,31 +1,42 @@
-name: Deploy and Compile Go Telegram Bot
+name: Deploy Go Telegram Bot
 
 on:
   push:
-    branches: [ main ]  # Триггер на пуш в main
+    branches: [main]
 
 jobs:
-  deploy-and-compile:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Build binary
+      run: |
+        go mod download
+        GOOS=linux GOARCH=amd64 go build -o tgbot main.go
+
+    - name: Prepare .env
+      run: |
+        echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
+
     - name: Install SSH key
       uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: ${{ secrets.SSH_KEY }}
 
-    - name: Compile and Restart Bot
+    - name: Deploy to server
       run: |
+        scp -o StrictHostKeyChecking=no tgbot .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/tgbot/
+        
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-        # Переходим в директорию с ботом
         cd /root/tgbot
-        
-        # Компилируем main.go (предполагается, что Go уже установлен на сервере)
-        go build -o tgbot main.go
-        
-        # Если нужно перезапустить сервис (пример для systemd)
-        # sudo systemctl restart tgbot.service
+        chmod +x tgbot
+        sudo systemctl restart tgbot.service
         EOF
