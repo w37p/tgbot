@@ -23,7 +23,7 @@ jobs:
     - name: Deploy to server
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          cd /path/to/your/project  # Переходим в директорию проекта
+          cd tgbot  # Переходим в директорию проекта
           git pull origin main      # Обновляем репозиторий
           docker-compose down      # Останавливаем контейнеры (если используется Docker)
           docker-compose up -d     # Перезапускаем контейнеры
