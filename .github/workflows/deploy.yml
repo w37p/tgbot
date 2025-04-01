@@ -1,4 +1,4 @@
-name: Deploy Bot to VDS
+name: Deploy Bot
 
 on:
   push:
@@ -8,25 +8,20 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Go environment
+      - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: '1.18'  # или ваша версия Go
+          go-version: '1.18'
 
-      - name: Install dependencies
-        run: |
-          go mod tidy
-
-      - name: Deploy to VDS
+      - name: Set up SSH and deploy to server
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
@@ -39,21 +34,24 @@ jobs:
             # Обновление репозитория
             git pull origin main || exit 1
             echo "Compiling project..."
-            
+
             # Компиляция проекта
             go build -o bot main.go || exit 1
             echo "Killing old bot processes..."
-            
+
             # Завершаем старые процессы бота, если они есть
             pkill -f bot || true
             echo "Starting new bot..."
-            
-            # Запуск нового бота через nohup
-            nohup ./bot > bot.log 2>&1 &
 
-            # Ждем 5 секунд для старта бота
+            # Запуск нового бота в tmux
+            tmux new-session -d -s bot-session './bot'
+
+            # Ожидаем 5 секунд, чтобы процесс начал работать
             sleep 5
             echo "Bot started successfully" >> bot.log
 
             # Выводим последние строки лога для проверки
             tail -n 10 bot.log
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GOROOT: /opt/hostedtoolcache/go/1.18.10/x64
