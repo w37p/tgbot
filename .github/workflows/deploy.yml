@@ -1,4 +1,4 @@
-name: Build and Deploy Go Telegram Bot
+name: Build and Deploy Go project
 
 on:
   push:
@@ -9,49 +9,45 @@ on:
       - main
 
 jobs:
-  build_and_deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    # Шаг 1: Checkout кода
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v2
 
-    # Шаг 2: Установка Go
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '1.18' # Укажите версию Go, которую используете
+        go-version: '1.18'  # Укажите версию Go, которую хотите использовать
 
-    # Шаг 3: Установка зависимостей
+    - name: Cache Go modules
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
     - name: Install dependencies
-      run: |
-        go mod tidy
+      run: go mod tidy
 
-    # Шаг 4: Сборка Go проекта
-    - name: Build the Go project
-      run: |
-        go build -o bot main.go
+    - name: Build Go project
+      run: go build -o bot main.go
 
-    # Шаг 5: Подключение к серверу и копирование собранного файла
     - name: Deploy to server via SSH
       uses: appleboy/ssh-action@v0.1.10
       with:
-        host: ${{ secrets.SSH_HOST }}  # Использование секретных переменных
+        host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         port: 22
         script: |
-          # Переход в директорию проекта
+          # Переход в нужную директорию
           cd /root/tgbot || exit 1
-
-          # Копирование собранного файла bot на сервер
+          # Удаляем старую версию бота, если она есть
           rm -f bot
-          scp ./bot ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/tgbot/
-
-          # Запуск нового бота
-          pkill -f bot || true
-          ./bot &
-
-          # Вывод последних строк лога
+          # Копируем новый скомпилированный файл на сервер
+          scp ./bot ${SSH_USER}@${SSH_HOST}:/root/tgbot/
+          # Выводим последние строки лога для проверки
           tail -n 10 bot.log
