@@ -5,69 +5,39 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"gopkg.in/telebot.v3"
 )
 
 func main() {
-	// Загружаем переменные окружения из .env
+	// Загружаем .env файл
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal("Ошибка загрузки .env файла")
 	}
 
-	// Создаем бота с токеном из .env
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	// Чтение токена из переменной окружения
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if token == "" {
+		log.Fatal("Токен не найден, проверь .env файл")
+	}
+
+	// Настройка бота
+	bot, err := telebot.NewBot(telebot.Settings{
+		Token: token,
+	})
 	if err != nil {
-		log.Panic(err)
+		log.Fatal("Ошибка создания бота: ", err)
 	}
 
-	bot.Debug = true
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	// Обработчик команды /start
+	bot.Handle("/start", func(c telebot.Context) error {
+		// Получаем имя пользователя
+		user := c.Sender()
+		message := "Привет, " + user.FirstName + " " + user.LastName + "!"
+		return c.Send(message)
+	})
 
-	// Настройка обновлений
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
-
-	// Обработка входящих сообщений
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		// Получаем информацию о пользователе
-		user := update.Message.From
-		greeting := generateGreeting(user)
-
-		// Создаем ответное сообщение
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, greeting)
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		// Отправляем сообщение
-		if _, err := bot.Send(msg); err != nil {
-			log.Println("Error sending message:", err)
-		}
-	}
-}
-
-// generateGreeting создает персонализированное приветствие
-func generateGreeting(user *tgbotapi.User) string {
-	var name string
-
-	// Проверяем наличие username
-	if user.UserName != "" {
-		name = "@" + user.UserName
-	} else {
-		name = user.FirstName
-		if user.LastName != "" {
-			name += " " + user.LastName
-		}
-	}
-
-	// Если вообще нет имени
-	if name == "" {
-		name = "друг"
-	}
-
-	return "Привет, " + name + "! 😊\nРад тебя видеть!"
+	// Запуск бота
+	log.Println("Бот запущен...")
+	bot.Start()
 }
