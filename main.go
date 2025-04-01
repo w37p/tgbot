@@ -4,40 +4,46 @@ import (
 	"log"
 	"os"
 
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/joho/godotenv"
-	"gopkg.in/telebot.v3"
 )
 
 func main() {
-	// Загружаем .env файл
+	// Загружаем переменные из .env файла
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Ошибка загрузки .env файла")
+		log.Fatal("Error loading .env file")
 	}
 
-	// Чтение токена из переменной окружения
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	// Получаем токен из переменной окружения
+	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
-		log.Fatal("Токен не найден, проверь .env файл")
+		log.Fatal("TELEGRAM_TOKEN not set in .env file")
 	}
 
-	// Настройка бота
-	bot, err := telebot.NewBot(telebot.Settings{
-		Token: token,
-	})
+	// Создаем нового бота
+	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		log.Fatal("Ошибка создания бота: ", err)
+		log.Fatal(err)
 	}
 
-	// Обработчик команды /start
-	bot.Handle("/start", func(c telebot.Context) error {
-		// Получаем имя пользователя
-		user := c.Sender()
-		message := "Привет, " + user.FirstName + " " + user.LastName + "!"
-		return c.Send(message)
-	})
+	bot.Debug = true
+	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	// Запуск бота
-	log.Println("Бот запущен...")
-	bot.Start()
+	// Создаем обновления (пулл обновлений)
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+	updates, err := bot.GetUpdatesChan(u)
+
+	for update := range updates {
+		if update.Message == nil { // игнорируем не сообщения
+			continue
+		}
+
+		// Если это команда /start
+		if update.Message.Command() == "start" {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Привет, "+update.Message.From.FirstName+"! Я твой новый Telegram-бот.")
+			bot.Send(msg)
+		}
+	}
 }
