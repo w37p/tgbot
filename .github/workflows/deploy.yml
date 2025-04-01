@@ -1,4 +1,5 @@
 name: Deploy Bot to VDS
+
 on:
   push:
     branches:
@@ -7,9 +8,19 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.18'  # или ваша версия Go
+
+      - name: Install dependencies
+        run: |
+          go mod tidy
 
       - name: Deploy to VDS
         uses: appleboy/ssh-action@v0.1.10
@@ -20,15 +31,29 @@ jobs:
           port: 22
           script: |
             echo "Starting deployment..."
+
+            # Переход в директорию проекта
             cd /root/tgbot || exit 1
             echo "Pulled latest changes..."
+            
+            # Обновление репозитория
             git pull origin main || exit 1
             echo "Compiling project..."
+            
+            # Компиляция проекта
             go build -o bot main.go || exit 1
             echo "Killing old bot processes..."
+            
+            # Завершаем старые процессы бота, если они есть
             pkill -f bot || true
             echo "Starting new bot..."
+            
+            # Запуск нового бота через nohup
             nohup ./bot > bot.log 2>&1 &
+
+            # Ждем 5 секунд для старта бота
             sleep 5
             echo "Bot started successfully" >> bot.log
+
+            # Выводим последние строки лога для проверки
             tail -n 10 bot.log
