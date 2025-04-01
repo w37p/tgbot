@@ -1,0 +1,27 @@
+name: CI/CD for Go Bot
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Update code and run bot on VDS
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          cd /home/${{ secrets.SSH_USER }}/mybot
+          git pull origin main
+          go build -o bot main.go
+          pkill -f bot || true
+          nohup ./bot > bot.log 2>&1 &
