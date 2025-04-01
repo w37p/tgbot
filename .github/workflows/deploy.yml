@@ -1,45 +1,34 @@
 name: Deploy Bot to VDS
-
 on:
   push:
     branches:
-      - main  # Триггер на пуш в ветку main
+      - main
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest  # Используем последнюю версию Ubuntu
-
+    runs-on: ubuntu-latest
     steps:
-      # Шаг 1: Checkout репозитория
       - name: Checkout code
-        uses: actions/checkout@v2  # Клонируем репозиторий на Runner
+        uses: actions/checkout@v2
 
-      # Шаг 2: Настройка SSH-агента
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.5.3  # Устанавливаем SSH-агент
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}  # Приватный ключ для SSH
-
-      # Шаг 3: Деплой на сервер VDS
       - name: Deploy to VDS
-        uses: appleboy/ssh-action@v0.1.10  # Действие для работы с SSH
+        uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.SSH_HOST }}  # IP-адрес или доменное имя сервера
-          username: ${{ secrets.SSH_USER }}  # Имя пользователя для SSH-подключения
-          key: ${{ secrets.SSH_KEY }}  # Приватный SSH ключ
-          port: 22  # Порт для подключения (обычно 22)
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
           script: |
             echo "Starting deployment..."
             cd /root/tgbot || exit 1
             echo "Pulled latest changes..."
-            git pull origin main
+            git pull origin main || exit 1
             echo "Compiling project..."
-            go build -o bot main.go
+            go build -o bot main.go || exit 1
             echo "Killing old bot processes..."
             pkill -f bot || true
             echo "Starting new bot..."
-            ./bot &  # Запуск бота в фоновом режиме
+            nohup ./bot > bot.log 2>&1 &
             sleep 5
             echo "Bot started successfully" >> bot.log
-            tail -n 10 bot.log  # Вывод последних строк лога
-
+            tail -n 10 bot.log
