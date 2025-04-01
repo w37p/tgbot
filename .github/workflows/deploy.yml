@@ -29,18 +29,17 @@ jobs:
           key: ${{ secrets.SSH_KEY }}  # Приватный SSH ключ
           port: 22  # Порт для подключения (обычно 22)
           script: |
-            # Переход в директорию проекта
+            echo "Starting deployment..."
             cd /root/tgbot || exit 1
-            # Обновление репозитория
+            echo "Pulled latest changes..."
             git pull origin main
-            # Компиляция проекта
+            echo "Compiling project..."
             go build -o bot main.go
-            # Завершаем старые процессы бота, если они есть
+            echo "Killing old bot processes..."
             pkill -f bot || true
-            # Запуск нового бота в фоновом режиме
-            ./bot &  # Фоновый процесс
-            # Ожидание на 5 секунд, чтобы убедиться, что бот стартует
+            echo "Starting new bot..."
+            ./bot &  # Запуск бота в фоновом режиме
             sleep 5
-            # Логируем успешный запуск
             echo "Bot started successfully" >> bot.log
-          timeout: 30m  # Время ожидания для деплоя
+            tail -n 10 bot.log  # Вывод последних строк лога
+
