@@ -1,42 +1,57 @@
-name: Deploy Go Telegram Bot
+name: Build and Deploy Go Telegram Bot
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
+    # Шаг 1: Checkout кода
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v2
 
-    - name: Setup Go
-      uses: actions/setup-go@v4
+    # Шаг 2: Установка Go
+    - name: Set up Go
+      uses: actions/setup-go@v2
       with:
-        go-version: '1.21'
+        go-version: '1.18' # Укажите версию Go, которую используете
 
-    - name: Build binary
+    # Шаг 3: Установка зависимостей
+    - name: Install dependencies
       run: |
-        go mod download
-        GOOS=linux GOARCH=amd64 go build -o tgbot main.go
+        go mod tidy
 
-    - name: Prepare .env
+    # Шаг 4: Сборка Go проекта
+    - name: Build the Go project
       run: |
-        echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
+        go build -o bot main.go
 
-    - name: Install SSH key
-      uses: webfactory/ssh-agent@v0.9.0
+    # Шаг 5: Подключение к VDS серверу и деплой
+    - name: Deploy to VDS Server via SSH
+      uses: appleboy/ssh-action@v0.1.10
       with:
-        ssh-private-key: ${{ secrets.SSH_KEY }}
+        host: ${{ secrets.SSH_HOST }}           # Укажите ваш VDS сервер (или используйте секрет)
+        username: ${{ secrets.SSH_USER }}   # Укажите имя пользователя для SSH (или секрет)
+        key: ${{ secrets.SSH_KEY }} # Укажите приватный ключ SSH (секрет)
+        port: 22
+        script: |
+          # Переход в нужную директорию
+          cd /path/to/your/project || exit 1
 
-    - name: Deploy to server
-      run: |
-        scp -o StrictHostKeyChecking=no tgbot .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/tgbot/
-        
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-        cd /root/tgbot
-        chmod +x tgbot
-        sudo systemctl restart tgbot.service
-        EOF
+          # Копирование собранного файла bot на сервер
+          rm -f bot
+          scp ./bot ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/path/to/your/project/
+
+          # Запуск нового бота
+          pkill -f bot || true
+          nohup ./bot > bot.log 2>&1 &
+
+          # Вывод последних строк лога
+          tail -n 10 bot.log
