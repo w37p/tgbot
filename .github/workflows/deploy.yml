@@ -20,7 +20,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
-          cd /home/${{ secrets.SSH_USER }}/mybot
+          cd /root/${{ secrets.SSH_USER }}/tgbot
           git pull origin main
           go build -o bot main.go
           pkill -f bot || true
