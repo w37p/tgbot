@@ -33,33 +33,25 @@ jobs:
       run: |
         go build -o bot main.go
 
-    # Шаг 5: Подключение к VDS серверу и деплой
-    - name: Deploy to VDS Server via SSH
+    # Шаг 5: Подключение к серверу и копирование собранного файла
+    - name: Deploy to server via SSH
       uses: appleboy/ssh-action@v0.1.10
       with:
-        host: ${{ secrets.SSH_HOST }}           # Используем секрет для хоста
-        username: ${{ secrets.SSH_USER }}       # Используем секрет для имени пользователя
-        key: ${{ secrets.SSH_KEY }}             # Используем секрет для SSH ключа
+        host: ${{ secrets.SSH_HOST }}  # Использование секретных переменных
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
         port: 22
         script: |
-          # Переход в нужную директорию
+          # Переход в директорию проекта
           cd /root/tgbot || exit 1
-          
-          # Проверяем, что файл bot существует после сборки
-          echo "Listing files in the directory:"
-          ls -l
 
           # Копирование собранного файла bot на сервер
           rm -f bot
           scp ./bot ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/root/tgbot/
-          
-          # Проверяем, что файл скопирован
-          echo "Listing files on the server:"
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "ls -l /root/tgbot"
 
           # Запуск нового бота
           pkill -f bot || true
-          nohup ./bot > bot.log 2>&1 &
-          
+          ./bot &
+
           # Вывод последних строк лога
           tail -n 10 bot.log
