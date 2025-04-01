@@ -1,4 +1,4 @@
-name: Deploy Bot
+name: Build and Deploy Go Project
 
 on:
   push:
@@ -6,8 +6,9 @@ on:
       - main
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -15,43 +16,27 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: '1.18'
+          go-version: '1.18'  # Укажите вашу версию Go
 
-      - name: Set up SSH and deploy to server
-        uses: appleboy/ssh-action@v0.1.10
+      - name: Cache Go modules
+        uses: actions/cache@v2
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
-          script: |
-            echo "Starting deployment..."
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-            # Переход в директорию проекта
-            cd /root/tgbot || exit 1
-            echo "Pulled latest changes..."
-            
-            # Обновление репозитория
-            git pull origin main || exit 1
-            echo "Compiling project..."
+      - name: Install dependencies
+        run: go mod tidy
 
-            # Компиляция проекта
-            go build -o bot main.go || exit 1
-            echo "Killing old bot processes..."
+      - name: Build the project
+        run: go build -o bot main.go
 
-            # Завершаем старые процессы бота, если они есть
-            pkill -f bot || true
-            echo "Starting new bot..."
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}  # Использует ваш приватный ключ из Secrets
 
-            # Запуск нового бота в tmux
-            tmux new-session -d -s bot-session './bot'
-
-            # Ожидаем 5 секунд, чтобы процесс начал работать
-            sleep 5
-            echo "Bot started successfully" >> bot.log
-
-            # Выводим последние строки лога для проверки
-            tail -n 10 bot.log
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          GOROOT: /opt/hostedtoolcache/go/1.18.10/x64
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no user@your-server-ip "cd /path/to/project && git pull && ./bot"
