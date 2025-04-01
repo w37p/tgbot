@@ -1,53 +1,31 @@
-name: Build and Deploy Go project
+name: Deploy and Compile Go Telegram Bot
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ main ]  # Триггер на пуш в main
 
 jobs:
-  build:
+  deploy-and-compile:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v2
+    - name: Install SSH key
+      uses: webfactory/ssh-agent@v0.9.0
       with:
-        go-version: '1.18'  # Укажите версию Go, которую хотите использовать
+        ssh-private-key: ${{ secrets.SSH_KEY }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/go-build
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Install dependencies
-      run: go mod tidy
-
-    - name: Build Go project
-      run: go build -o bot main.go
-
-    - name: Deploy to server via SSH
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        port: 22
-        script: |
-          # Переход в нужную директорию
-          cd /root/tgbot || exit 1
-          # Удаляем старую версию бота, если она есть
-          rm -f bot
-          # Копируем новый скомпилированный файл на сервер
-          scp ./bot ${SSH_USER}@${SSH_HOST}:/root/tgbot/
-          # Выводим последние строки лога для проверки
-          tail -n 10 bot.log
+    - name: Compile and Restart Bot
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+        # Переходим в директорию с ботом
+        cd /root/tgbot
+        
+        # Компилируем main.go (предполагается, что Go уже установлен на сервере)
+        go build -o tgbot main.go
+        
+        # Если нужно перезапустить сервис (пример для systemd)
+        # sudo systemctl restart tgbot.service
+        EOF
