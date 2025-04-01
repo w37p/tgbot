@@ -4,48 +4,70 @@ import (
 	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func main() {
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("8127407661:AAHZ246AnjUoq0QFKkNHNvAyfecwenhpmsw"))
+	// Загружаем переменные окружения из .env
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Создаем бота с токеном из .env
+	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
 		log.Panic(err)
 	}
 
 	bot.Debug = true
+	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	log.Printf("Бот запущен: %s", bot.Self.UserName)
-
+	// Настройка обновлений
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-
 	updates := bot.GetUpdatesChan(u)
 
+	// Обработка входящих сообщений
 	for update := range updates {
 		if update.Message == nil {
 			continue
 		}
 
-		// Получаем имя пользователя
-		userName := getUserName(update.Message.From)
+		// Получаем информацию о пользователе
+		user := update.Message.From
+		greeting := generateGreeting(user)
 
-		// Формируем ответ
-		reply := "Привет, " + userName + "! 😊"
-
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, reply)
+		// Создаем ответное сообщение
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, greeting)
 		msg.ReplyToMessageID = update.Message.MessageID
 
+		// Отправляем сообщение
 		if _, err := bot.Send(msg); err != nil {
-			log.Println("Ошибка отправки сообщения:", err)
+			log.Println("Error sending message:", err)
 		}
 	}
 }
 
-// getUserName возвращает username или first_name, если username отсутствует
-func getUserName(user *tgbotapi.User) string {
+// generateGreeting создает персонализированное приветствие
+func generateGreeting(user *tgbotapi.User) string {
+	var name string
+
+	// Проверяем наличие username
 	if user.UserName != "" {
-		return "@" + user.UserName
+		name = "@" + user.UserName
+	} else {
+		name = user.FirstName
+		if user.LastName != "" {
+			name += " " + user.LastName
+		}
 	}
-	return user.FirstName
+
+	// Если вообще нет имени
+	if name == "" {
+		name = "друг"
+	}
+
+	return "Привет, " + name + "! 😊\nРад тебя видеть!"
 }
