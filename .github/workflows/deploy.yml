@@ -25,6 +25,8 @@ jobs:
         
         # Компилируем main.go (предполагается, что Go уже установлен на сервере)
         go build -o tgbot main.go
+        kill $(cat /root/tgbot/bot.pid) 2>/dev/null || true
+        nohup ./tgbot > bot.log 2>&1 &
         
         # Если нужно перезапустить сервис (пример для systemd)
         # sudo systemctl restart tgbot.service
