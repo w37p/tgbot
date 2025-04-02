@@ -42,7 +42,7 @@ func main() {
 
 		// Если это команда /start
 		if update.Message.Command() == "start" {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Привет, "+update.Message.From.FirstName+"! Я твой новый Telegram-бот.")
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "QQ, "+update.Message.From.FirstName+"! Я твой новый Telegram-бот.")
 			bot.Send(msg)
 		}
 	}
