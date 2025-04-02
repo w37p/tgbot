@@ -22,7 +22,11 @@ jobs:
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
         # Переходим в директорию с ботом
         cd /root/tgbot
-        
+        git config --global --add safe.directory /root/tgbot
+        git fetch
+        git reset --hard origin/main
+        git pull
+        go mod tidy
         # Компилируем main.go (предполагается, что Go уже установлен на сервере)
         go build -o tgbot main.go
         kill $(cat /root/tgbot/bot.pid) 2>/dev/null || true
