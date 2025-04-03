@@ -12,7 +12,7 @@ import (
 
 var (
 	movieList     []string         // Хранилище фильмов
-	waitingForAdd map[int64]bool = make(map[int64]bool) // Флаг ожидания ввода фильма
+	waitingForAdd map[int64]bool = make(map[int64]bool) // Ожидание ввода фильма
 )
 
 func main() {
@@ -43,9 +43,9 @@ func main() {
 	updates, err := bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message != nil { // Обрабатываем текстовые сообщения
+		if update.Message != nil { // Обрабатываем сообщения
 			handleMessage(bot, update.Message)
-		} else if update.CallbackQuery != nil { // Обрабатываем кнопки
+		} else if update.CallbackQuery != nil { // Обрабатываем нажатие кнопок
 			handleCallback(bot, update.CallbackQuery)
 		}
 	}
@@ -89,6 +89,9 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 			tgbotapi.NewInlineKeyboardButtonData("❌ Удалить фильм", "remove"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ Отметить просмотренные", "watched"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📋 Показать список", "list"),
 		),
 	)
@@ -98,13 +101,13 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 	bot.Send(msg)
 }
 
-// Обрабатываем кнопки
+// Обрабатываем нажатие кнопок
 func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 	chatID := callback.Message.Chat.ID
 
 	switch callback.Data {
 	case "add":
-		waitingForAdd[chatID] = true // Включаем режим ожидания ввода
+		waitingForAdd[chatID] = true
 		msg := tgbotapi.NewMessage(chatID, "Введите название фильма для добавления:")
 		bot.Send(msg)
 
@@ -115,7 +118,7 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 			return
 		}
 
-		// Создаем кнопки для удаления фильмов
+		// Кнопки для удаления
 		var rows [][]tgbotapi.InlineKeyboardButton
 		for _, movie := range movieList {
 			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -125,6 +128,28 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 		msg := tgbotapi.NewMessage(chatID, "Выберите фильм для удаления:")
+		msg.ReplyMarkup = keyboard
+		bot.Send(msg)
+
+	case "watched":
+		if len(movieList) == 0 {
+			msg := tgbotapi.NewMessage(chatID, "Список фильмов пуст.")
+			bot.Send(msg)
+			return
+		}
+
+		// Кнопки для отметки просмотренных
+		var rows [][]tgbotapi.InlineKeyboardButton
+		for _, movie := range movieList {
+			if !strings.Contains(movie, "✅") { // Не добавляем галочку к уже просмотренным
+				rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(movie, "watch_"+movie),
+				))
+			}
+		}
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+		msg := tgbotapi.NewMessage(chatID, "Выберите фильм, который вы посмотрели:")
 		msg.ReplyMarkup = keyboard
 		bot.Send(msg)
 
@@ -144,6 +169,11 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 			removeMovie(movie)
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' удален!", movie))
 			bot.Send(msg)
+		} else if strings.HasPrefix(callback.Data, "watch_") {
+			movie := strings.TrimPrefix(callback.Data, "watch_")
+			markMovieWatched(movie)
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' отмечен как просмотренный ✅", movie))
+			bot.Send(msg)
 		}
 	}
 }
@@ -153,6 +183,16 @@ func removeMovie(movie string) {
 	for i, m := range movieList {
 		if m == movie {
 			movieList = append(movieList[:i], movieList[i+1:]...)
+			break
+		}
+	}
+}
+
+// Функция отметки фильма как просмотренного
+func markMovieWatched(movie string) {
+	for i, m := range movieList {
+		if m == movie {
+			movieList[i] = movie + " ✅"
 			break
 		}
 	}
