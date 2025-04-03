@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -12,8 +13,9 @@ import (
 
 var (
 	movieList     []string
+	userChats     map[int64]bool = make(map[int64]bool)
 	waitingForAdd map[int64]bool = make(map[int64]bool)
-	userChats     map[int64]bool = make(map[int64]bool) // Храним список пользователей
+	mu            sync.Mutex // Для потокобезопасности
 )
 
 func main() {
@@ -48,27 +50,30 @@ func main() {
 	}
 }
 
-// Обрабатываем текстовые команды
+// Обрабатываем команды
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	chatID := message.Chat.ID
 
-	// Добавляем пользователя в список (чтобы он получал уведомления)
+	// Запоминаем пользователя
 	userChats[chatID] = true
 
 	if waitingForAdd[chatID] {
 		movie := strings.TrimSpace(message.Text)
 		if movie == "" {
-			bot.Send(tgbotapi.NewMessage(chatID, "Название фильма не может быть пустым. Попробуйте еще раз."))
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Название фильма не может быть пустым. Попробуйте снова."))
 			return
 		}
 
+		mu.Lock()
 		movieList = append(movieList, movie)
-		waitingForAdd[chatID] = false 
+		mu.Unlock()
 
-		bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' добавлен!", movie)))
+		waitingForAdd[chatID] = false
 
-		// Рассылаем уведомление всем пользователям
-		notifyAllUsers(bot, fmt.Sprintf("🎬 Новый фильм добавлен: *%s*", movie))
+		bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Фильм '%s' добавлен!", movie)))
+
+		// Уведомляем всех пользователей
+		notifyAllUsers(bot, fmt.Sprintf("🎬 *Добавлен новый фильм:* _%s_", movie))
 
 		sendMainMenu(bot, chatID)
 		return
@@ -78,7 +83,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	case "/start":
 		sendMainMenu(bot, chatID)
 	default:
-		bot.Send(tgbotapi.NewMessage(chatID, "Неизвестная команда. Используйте меню ниже."))
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Неизвестная команда. Используйте кнопки ниже."))
 		sendMainMenu(bot, chatID)
 	}
 }
@@ -101,7 +106,7 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 		),
 	)
 
-	msg := tgbotapi.NewMessage(chatID, "🎬 *Ваш список фильмов*\nВыберите действие:")
+	msg := tgbotapi.NewMessage(chatID, "🎬 *Ваш список фильмов:*\nВыберите действие:")
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboard
 	bot.Send(msg)
@@ -118,29 +123,33 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 
 	case "remove":
 		if len(movieList) == 0 {
-			bot.Send(tgbotapi.NewMessage(chatID, "Список фильмов пуст."))
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Список фильмов пуст."))
 			return
 		}
 
 		var rows [][]tgbotapi.InlineKeyboardButton
+		mu.Lock()
 		for _, movie := range movieList {
 			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData(movie, "del_"+movie),
 			))
 		}
+		mu.Unlock()
+
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
-		msg := tgbotapi.NewMessage(chatID, "Выберите фильм для удаления:")
+		msg := tgbotapi.NewMessage(chatID, "🗑 Выберите фильм для удаления:")
 		msg.ReplyMarkup = keyboard
 		bot.Send(msg)
 
 	case "watched":
 		if len(movieList) == 0 {
-			bot.Send(tgbotapi.NewMessage(chatID, "Список фильмов пуст."))
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Список фильмов пуст."))
 			return
 		}
 
 		var rows [][]tgbotapi.InlineKeyboardButton
+		mu.Lock()
 		for _, movie := range movieList {
 			if !strings.Contains(movie, "✅") {
 				rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -148,17 +157,24 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 				))
 			}
 		}
+		mu.Unlock()
+
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
-		msg := tgbotapi.NewMessage(chatID, "Выберите фильм, который вы посмотрели:")
+		msg := tgbotapi.NewMessage(chatID, "🎬 Выберите фильм, который вы посмотрели:")
 		msg.ReplyMarkup = keyboard
 		bot.Send(msg)
 
 	case "list":
 		if len(movieList) == 0 {
-			bot.Send(tgbotapi.NewMessage(chatID, "Список фильмов пуст."))
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Список фильмов пуст."))
 		} else {
-			bot.Send(tgbotapi.NewMessage(chatID, "Ваши фильмы:\n"+strings.Join(movieList, "\n")))
+			mu.Lock()
+			movieText := "📋 *Список фильмов:*\n" + strings.Join(movieList, "\n")
+			mu.Unlock()
+			msg := tgbotapi.NewMessage(chatID, movieText)
+			msg.ParseMode = "Markdown"
+			bot.Send(msg)
 		}
 
 	case "refresh":
@@ -168,19 +184,21 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 		if strings.HasPrefix(callback.Data, "del_") {
 			movie := strings.TrimPrefix(callback.Data, "del_")
 			removeMovie(movie)
-			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' удален!", movie)))
+			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🗑 Фильм '%s' удален!", movie)))
 		} else if strings.HasPrefix(callback.Data, "watch_") {
 			movie := strings.TrimPrefix(callback.Data, "watch_")
 			markMovieWatched(movie)
-			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' отмечен как просмотренный ✅", movie)))
+			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Фильм '%s' отмечен как просмотренный!", movie)))
 		}
 	}
 
 	sendMainMenu(bot, chatID)
 }
 
-// Функция рассылки уведомлений всем пользователям
+// Рассылка уведомлений
 func notifyAllUsers(bot *tgbotapi.BotAPI, message string) {
+	mu.Lock()
+	defer mu.Unlock()
 	for chatID := range userChats {
 		msg := tgbotapi.NewMessage(chatID, message)
 		msg.ParseMode = "Markdown"
@@ -190,6 +208,8 @@ func notifyAllUsers(bot *tgbotapi.BotAPI, message string) {
 
 // Удаляем фильм
 func removeMovie(movie string) {
+	mu.Lock()
+	defer mu.Unlock()
 	for i, m := range movieList {
 		if m == movie {
 			movieList = append(movieList[:i], movieList[i+1:]...)
@@ -200,6 +220,8 @@ func removeMovie(movie string) {
 
 // Отмечаем фильм просмотренным
 func markMovieWatched(movie string) {
+	mu.Lock()
+	defer mu.Unlock()
 	for i, m := range movieList {
 		if m == movie {
 			movieList[i] = movie + " ✅"
