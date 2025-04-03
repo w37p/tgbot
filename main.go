@@ -74,21 +74,15 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 		// Уведомляем всех пользователей
 		notifyAllUsers(bot, fmt.Sprintf("🎬 *Добавлен новый фильм:* _%s_", movie))
-
-		sendMainMenu(bot, chatID)
 		return
 	}
 
-	switch message.Text {
-	case "/start":
-		sendMainMenu(bot, chatID)
-	default:
-		bot.Send(tgbotapi.NewMessage(chatID, "❌ Неизвестная команда. Используйте кнопки ниже."))
+	if message.Text == "/start" {
 		sendMainMenu(bot, chatID)
 	}
 }
 
-// Отправляем главное меню
+// Отправляем главное меню (только при /start)
 func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -100,9 +94,6 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📋 Показать список", "list"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔄 Обновить меню", "refresh"),
 		),
 	)
 
@@ -177,9 +168,6 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 			bot.Send(msg)
 		}
 
-	case "refresh":
-		sendMainMenu(bot, chatID)
-
 	default:
 		if strings.HasPrefix(callback.Data, "del_") {
 			movie := strings.TrimPrefix(callback.Data, "del_")
@@ -191,8 +179,6 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Фильм '%s' отмечен как просмотренный!", movie)))
 		}
 	}
-
-	sendMainMenu(bot, chatID)
 }
 
 // Рассылка уведомлений
