@@ -70,10 +70,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 		waitingForAdd[chatID] = false
 
+		// Отправляем сообщение только добавившему пользователю
 		bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Фильм '%s' добавлен!", movie)))
 
-		// Уведомляем всех пользователей
-		notifyAllUsers(bot, fmt.Sprintf("🎬 *Добавлен новый фильм:* _%s_", movie))
+		// Оповещаем всех остальных пользователей
+		notifyAllUsers(bot, fmt.Sprintf("🎬 *Добавлен новый фильм:* _%s_", movie), chatID)
 		return
 	}
 
@@ -192,14 +193,16 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 	}
 }
 
-// Рассылка уведомлений
-func notifyAllUsers(bot *tgbotapi.BotAPI, message string) {
+// 🔹 Рассылка уведомлений (кроме автора)
+func notifyAllUsers(bot *tgbotapi.BotAPI, message string, excludeChatID int64) {
 	mu.Lock()
 	defer mu.Unlock()
 	for chatID := range userChats {
-		msg := tgbotapi.NewMessage(chatID, message)
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
+		if chatID != excludeChatID { // Исключаем отправителя
+			msg := tgbotapi.NewMessage(chatID, message)
+			msg.ParseMode = "Markdown"
+			bot.Send(msg)
+		}
 	}
 }
 
