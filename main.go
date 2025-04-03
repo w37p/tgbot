@@ -10,7 +10,10 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-var movieList []string // Хранилище фильмов
+var (
+	movieList     []string         // Хранилище фильмов
+	waitingForAdd map[int64]bool = make(map[int64]bool) // Флаг ожидания ввода фильма
+)
 
 func main() {
 	// Загружаем .env файл
@@ -40,9 +43,9 @@ func main() {
 	updates, err := bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message != nil { // Обрабатываем сообщения
+		if update.Message != nil { // Обрабатываем текстовые сообщения
 			handleMessage(bot, update.Message)
-		} else if update.CallbackQuery != nil { // Обрабатываем нажатие кнопок
+		} else if update.CallbackQuery != nil { // Обрабатываем кнопки
 			handleCallback(bot, update.CallbackQuery)
 		}
 	}
@@ -50,11 +53,30 @@ func main() {
 
 // Обрабатываем текстовые команды
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	chatID := message.Chat.ID
+
+	// Если ожидаем ввода фильма, добавляем его в список
+	if waitingForAdd[chatID] {
+		movie := strings.TrimSpace(message.Text)
+		if movie == "" {
+			msg := tgbotapi.NewMessage(chatID, "Название фильма не может быть пустым. Попробуйте еще раз.")
+			bot.Send(msg)
+			return
+		}
+
+		movieList = append(movieList, movie)
+		waitingForAdd[chatID] = false // Сбрасываем режим ожидания
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Фильм '%s' добавлен!", movie))
+		bot.Send(msg)
+		return
+	}
+
 	switch message.Text {
 	case "/start":
-		sendMainMenu(bot, message.Chat.ID)
+		sendMainMenu(bot, chatID)
 	default:
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Неизвестная команда. Используйте меню ниже.")
+		msg := tgbotapi.NewMessage(chatID, "Неизвестная команда. Используйте меню ниже.")
 		bot.Send(msg)
 	}
 }
@@ -76,14 +98,16 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 	bot.Send(msg)
 }
 
-// Обрабатываем нажатие кнопок
+// Обрабатываем кнопки
 func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 	chatID := callback.Message.Chat.ID
 
 	switch callback.Data {
 	case "add":
+		waitingForAdd[chatID] = true // Включаем режим ожидания ввода
 		msg := tgbotapi.NewMessage(chatID, "Введите название фильма для добавления:")
 		bot.Send(msg)
+
 	case "remove":
 		if len(movieList) == 0 {
 			msg := tgbotapi.NewMessage(chatID, "Список фильмов пуст.")
@@ -113,6 +137,7 @@ func handleCallback(bot *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
 
 		msg := tgbotapi.NewMessage(chatID, "Ваши фильмы:\n" + strings.Join(movieList, "\n"))
 		bot.Send(msg)
+
 	default:
 		if strings.HasPrefix(callback.Data, "del_") {
 			movie := strings.TrimPrefix(callback.Data, "del_")
