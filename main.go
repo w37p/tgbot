@@ -15,7 +15,7 @@ var (
 	movieList     []string
 	userChats     map[int64]bool = make(map[int64]bool)
 	waitingForAdd map[int64]bool = make(map[int64]bool)
-	mu            sync.Mutex // Для потокобезопасности
+	mu            sync.Mutex
 )
 
 func main() {
@@ -84,6 +84,13 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 // Отправляем главное меню (только при /start)
 func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
+	// Добавляем постоянную кнопку /start внизу экрана
+	replyKeyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("/start"),
+		),
+	)
+
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Добавить фильм", "add"),
@@ -97,10 +104,14 @@ func sendMainMenu(bot *tgbotapi.BotAPI, chatID int64) {
 		),
 	)
 
-	msg := tgbotapi.NewMessage(chatID, "🎬 *Ваш список фильмов:*\nВыберите действие:")
+	msg := tgbotapi.NewMessage(chatID, "🎬 *Ваш список фильмов:*")
 	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = keyboard
+	msg.ReplyMarkup = replyKeyboard // Добавляем кнопку /start
 	bot.Send(msg)
+
+	menuMsg := tgbotapi.NewMessage(chatID, "Выберите действие:")
+	menuMsg.ReplyMarkup = keyboard
+	bot.Send(menuMsg)
 }
 
 // Обрабатываем кнопки
