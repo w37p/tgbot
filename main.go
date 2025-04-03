@@ -4,25 +4,16 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
+	"time"
 
-	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-var movieList []string
-
 func main() {
-	// Загружаем переменные из файла .env
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	// Получаем токен из переменной окружения
+	// Получаем токен из системных переменных окружения
 	token := os.Getenv("TELEGRAM_BOT_API_KEY")
 	if token == "" {
-		log.Fatal("TELEGRAM_BOT_API_KEY is not set")
+		log.Fatal("Токен бота не найден в переменных окружения")
 	}
 
 	// Создаем объект бота
@@ -32,68 +23,16 @@ func main() {
 	}
 
 	bot.Debug = true
-	fmt.Println("Authorized on account", bot.Self.UserName)
+	fmt.Println("Бот запущен:", bot.Self.UserName)
 
-	// Настроим обновления
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-	updates, err := bot.GetUpdatesChan(u)
+	// Укажите chatID, куда бот должен отправлять сообщения
+	chatID := int64(123456789) // Замените на реальный ID
 
-	// Обрабатываем сообщения
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
+	// Запускаем бесконечный цикл отправки сообщений
+	for {
+		msg := tgbotapi.NewMessage(chatID, "Привет! Я активен и отправляю сообщение каждые 10 секунд.")
+		bot.Send(msg)
 
-		// Приветственное сообщение
-		if update.Message.Text == "/start" {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать! Используйте команды:\n/add - добавить фильм\n/remove - удалить фильм\n/list - показать список фильмов")
-			bot.Send(msg)
-			continue
-		}
-
-		// Команда для добавления фильма
-		if strings.HasPrefix(update.Message.Text, "/add") {
-			movie := strings.TrimPrefix(update.Message.Text, "/add ")
-			if movie != "" {
-				movieList = append(movieList, movie)
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Фильм '%s' добавлен!", movie))
-				bot.Send(msg)
-			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Пожалуйста, укажите название фильма после команды /add")
-				bot.Send(msg)
-			}
-			continue
-		}
-
-		// Команда для удаления фильма
-		if strings.HasPrefix(update.Message.Text, "/remove") {
-			movie := strings.TrimPrefix(update.Message.Text, "/remove ")
-			if movie != "" {
-				for i, m := range movieList {
-					if m == movie {
-						movieList = append(movieList[:i], movieList[i+1:]...)
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Фильм '%s' удален!", movie))
-						bot.Send(msg)
-						break
-					}
-				}
-			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Пожалуйста, укажите название фильма после команды /remove")
-				bot.Send(msg)
-			}
-			continue
-		}
-
-		// Команда для вывода списка фильмов
-		if update.Message.Text == "/list" {
-			if len(movieList) == 0 {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Список фильмов пуст!")
-				bot.Send(msg)
-			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Список фильмов:\n"+strings.Join(movieList, "\n"))
-				bot.Send(msg)
-			}
-		}
+		time.Sleep(10 * time.Second)
 	}
 }
