@@ -6,14 +6,21 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
 func main() {
-	// Получаем токен из системных переменных окружения
-	token := os.Getenv("TELEGRAM_BOT_API_KEY")
+	// Загружаем переменные окружения из файла .env
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Ошибка загрузки .env файла")
+	}
+
+	// Получаем токен из переменной окружения
+	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
-		log.Fatal("Токен бота не найден в переменных окружения")
+		log.Fatal("Токен бота не найден в .env файле")
 	}
 
 	// Создаем объект бота
