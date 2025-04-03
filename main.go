@@ -45,22 +45,10 @@ func main() {
 			continue
 		}
 
-		// Приветственное сообщение с кнопками
+		// Приветственное сообщение
 		if update.Message.Text == "/start" {
-			keyboard := tgbotapi.NewReplyKeyboard(
-				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButton("Обновить список"),
-				),
-			)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать! Используйте кнопки ниже для взаимодействия с ботом.")
-			msg.ReplyMarkup = keyboard
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать! Используйте команды:\n/add - добавить фильм\n/remove - удалить фильм\n/list - показать список фильмов")
 			bot.Send(msg)
-			continue
-		}
-
-		// Команда для обновления списка (аналогичная /start)
-		if update.Message.Text == "Обновить список" {
-			showMovieList(update.Message.Chat.ID, bot)
 			continue
 		}
 
@@ -99,17 +87,13 @@ func main() {
 
 		// Команда для вывода списка фильмов
 		if update.Message.Text == "/list" {
-			showMovieList(update.Message.Chat.ID, bot)
+			if len(movieList) == 0 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Список фильмов пуст!")
+				bot.Send(msg)
+			} else {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Список фильмов:\n"+strings.Join(movieList, "\n"))
+				bot.Send(msg)
+			}
 		}
-	}
-}
-
-func showMovieList(chatID int64, bot *tgbotapi.BotAPI) {
-	if len(movieList) == 0 {
-		msg := tgbotapi.NewMessage(chatID, "Список фильмов пуст!")
-		bot.Send(msg)
-	} else {
-		msg := tgbotapi.NewMessage(chatID, "Список фильмов:\n"+strings.Join(movieList, "\n"))
-		bot.Send(msg)
 	}
 }
