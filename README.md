@@ -34,4 +34,4 @@
 
 1. Клонируй репозиторий:
    ```bash
-   git clone https://github.com/yourusername/yourprojectname.git
+   git clone git@github.com:w37p/tgbot.git
